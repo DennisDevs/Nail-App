@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NailAR – Virtual Nail Try-On</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0d0b0f;
+    --surface: #161219;
+    --surface2: #1e1a22;
+    --border: rgba(255,255,255,0.07);
+    --accent: #e8b4c8;
+    --accent2: #c49fd4;
+    --text: #f0eaf4;
+    --muted: #7a7082;
+    --nail-1: #e8b4c8;
+    --nail-2: #c49fd4;
+    --nail-3: #f4e0d6;
+    --nail-4: #1a0a0f;
+    --nail-5: #d4a574;
+    --nail-6: #8fb8d4;
+    --nail-7: #e8c4a0;
+    --nail-8: #b8d4b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* Header */
+  header {
+    padding: 16px 20px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 10;
+  }
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .logo span { font-style: italic; }
+  .header-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  /* Camera area */
+  .camera-wrap {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background: #0a0810;
+  }
+
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1); /* mirror */
+  }
+
+  #overlay-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* Camera off state */
+  .cam-off-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: radial-gradient(ellipse at center, #1e1228 0%, #0d0b0f 70%);
+  }
+  .cam-icon {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .cam-off-state p {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    max-width: 200px;
+    line-height: 1.6;
+  }
+  .cam-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 24px;
+    padding: 12px 28px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a0a1a;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: opacity 0.2s;
+  }
+  .cam-btn:hover { opacity: 0.85; }
+
+  /* AR overlay instructions */
+  .ar-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13, 11, 15, 0.7);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    pointer-events: none;
+    letter-spacing: 0.05em;
+  }
+
+  /* Hand demo overlay */
+  .hand-demo {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Bottom panel */
+  .bottom-panel {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 0 28px;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Tab bar */
+  .tabs {
+    display: flex;
+    padding: 0 20px 14px;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: transparent;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #1a0a1a;
+    border-color: transparent;
+  }
+
+  /* Options grid */
+  .options-scroll {
+    display: flex;
+    gap: 12px;
+    padding: 0 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .options-scroll::-webkit-scrollbar { display: none; }
+
+  .option-card {
+    flex-shrink: 0;
+    width: 72px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .option-swatch {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .option-card.selected .option-swatch {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(232, 180, 200, 0.3);
+  }
+  .option-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+  .option-card.selected .option-label { color: var(--accent); }
+
+  /* Shape preview nail */
+  .shape-nail {
+    width: 28px;
+    height: 40px;
+    position: relative;
+  }
+
+  /* Bottom actions */
+  .actions {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px 0;
+    align-items: center;
+  }
+  .action-btn {
+    flex: 1;
+    padding: 13px;
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .action-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #1a0a1a;
+  }
+  .action-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    flex: 0.6;
+  }
+  .action-btn:active { transform: scale(0.97); }
+
+  /* Nail shape SVG styles */
+  .nail-shape { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
+
+  /* AR hand canvas */
+  #hand-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* Color picker row */
+  .color-row {
+    display: flex;
+    gap: 10px;
+    padding: 0 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    align-items: center;
+  }
+  .color-row::-webkit-scrollbar { display: none; }
+  .color-dot {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .color-dot.selected {
+    border-color: white;
+    transform: scale(1.15);
+    box-shadow: 0 0 12px rgba(255,255,255,0.2);
+  }
+
+  /* Finish types */
+  .finish-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 0 20px;
+  }
+  .finish-card {
+    padding: 10px 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .finish-card.selected {
+    border-color: var(--accent);
+    background: rgba(232, 180, 200, 0.08);
+  }
+  .finish-emoji { font-size: 20px; display: block; margin-bottom: 4px; }
+  .finish-name { font-size: 9px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .finish-card.selected .finish-name { color: var(--accent); }
+
+  /* Length slider */
+  .length-section { padding: 0 20px; }
+  .length-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .length-label span { color: var(--accent); }
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 3px;
+    background: linear-gradient(to right, var(--accent), var(--accent2));
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(232, 180, 200, 0.5);
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(232,180,200,0.15);
+    border: 1px solid rgba(232,180,200,0.3);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 8px 20px;
+    font-size: 12px;
+    color: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Nail<span>AR</span></div>
+  <div class="header-pill">Live Try-On</div>
+</header>
+
+<div class="camera-wrap" id="cameraWrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="hand-canvas"></canvas>
+
+  <div class="cam-off-state" id="camOff">
+    <div class="cam-icon">💅</div>
+    <p>Point your camera at your hand to try on nail extensions</p>
+    <button class="cam-btn" onclick="startCamera()">Enable Camera</button>
+  </div>
+
+  <div class="ar-hint" id="arHint" style="display:none">Hold palm flat · fingers spread</div>
+</div>
+
+<div class="bottom-panel">
+  <div class="tabs" id="tabBar">
+    <button class="tab active" onclick="switchTab('shape',this)">Shape</button>
+    <button class="tab" onclick="switchTab('color',this)">Color</button>
+    <button class="tab" onclick="switchTab('finish',this)">Finish</button>
+    <button class="tab" onclick="switchTab('length',this)">Length</button>
+    <button class="tab" onclick="switchTab('design',this)">Design</button>
+  </div>
+
+  <!-- Shape tab -->
+  <div class="tab-content" id="tab-shape">
+    <div class="options-scroll" id="shapeOptions"></div>
+  </div>
+
+  <!-- Color tab -->
+  <div class="tab-content" id="tab-color" style="display:none">
+    <div class="color-row" id="colorOptions"></div>
+  </div>
+
+  <!-- Finish tab -->
+  <div class="tab-content" id="tab-finish" style="display:none">
+    <div class="finish-grid" id="finishOptions"></div>
+  </div>
+
+  <!-- Length tab -->
+  <div class="tab-content" id="tab-length" style="display:none">
+    <div class="length-section">
+      <div class="length-label">Nail Length <span id="lengthVal">Medium</span></div>
+      <input type="range" min="1" max="5" value="3" id="lengthSlider" oninput="updateLength(this.value)">
+    </div>
+  </div>
+
+  <!-- Design tab -->
+  <div class="tab-content" id="tab-design" style="display:none">
+    <div class="options-scroll" id="designOptions"></div>
+  </div>
+
+  <div class="actions">
+    <button class="action-btn action-secondary" onclick="capturePhoto()">📸 Save</button>
+    <button class="action-btn action-primary" onclick="showToast('✨ Look saved to gallery!')">Book Appointment</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+const state = {
+  shape: 'almond',
+  color: '#e8b4c8',
+  finish: 'glossy',
+  length: 3,
+  design: 'none',
+  cameraOn: false
+};
+
+// ─── Data ────────────────────────────────────────────────
+const shapes = [
+  { id:'round',    label:'Round',    path:'M4,35 Q4,4 16,4 Q28,4 28,35 Q28,44 16,44 Q4,44 4,35Z' },
+  { id:'oval',     label:'Oval',     path:'M5,38 Q4,4 16,4 Q28,4 27,38 Q26,46 16,48 Q6,46 5,38Z' },
+  { id:'almond',   label:'Almond',   path:'M6,42 Q4,6 16,2 Q28,6 26,42 Q22,52 16,54 Q10,52 6,42Z' },
+  { id:'stiletto', label:'Stiletto', path:'M7,44 Q4,8 16,0 Q28,8 25,44 Q22,56 16,60 Q10,56 7,44Z' },
+  { id:'coffin',   label:'Coffin',   path:'M6,42 Q4,6 16,2 Q28,6 26,42 L22,50 L10,50 Z' },
+  { id:'square',   label:'Square',   path:'M5,5 L27,5 L27,46 L5,46 Z' },
+  { id:'squoval',  label:'Squoval',  path:'M6,5 Q5,5 5,6 L5,46 L27,46 L27,6 Q27,5 26,5 Z' },
+  { id:'flare',    label:'Flare',    path:'M8,44 Q5,8 16,2 Q27,8 24,44 L28,52 L4,52 Z' },
+];
+
+const colors = [
+  { color:'#e8b4c8', name:'Ballet Pink' },
+  { color:'#c49fd4', name:'Lavender' },
+  { color:'#f4e0d6', name:'Nude' },
+  { color:'#1a0a0f', name:'Midnight' },
+  { color:'#c0392b', name:'Red' },
+  { color:'#d4a574', name:'Caramel' },
+  { color:'#8fb8d4', name:'Sky Blue' },
+  { color:'#b8d4b8', name:'Sage' },
+  { color:'#f4d03f', name:'Butter' },
+  { color:'#2c3e50', name:'Navy' },
+  { color:'#e67e22', name:'Coral' },
+  { color:'#ffffff', name:'White' },
+  { color:'#1a1a1a', name:'Jet Black' },
+  { color:'#7f8c8d', name:'Chrome' },
+];
+
+const finishes = [
+  { id:'glossy',   emoji:'✨', name:'Glossy' },
+  { id:'matte',    emoji:'🪨', name:'Matte' },
+  { id:'glitter',  emoji:'🌟', name:'Glitter' },
+  { id:'chrome',   emoji:'🔮', name:'Chrome' },
+  { id:'hologram', emoji:'🌈', name:'Holo' },
+  { id:'velvet',   emoji:'🎀', name:'Velvet' },
+  { id:'gel',      emoji:'💎', name:'Gel' },
+  { id:'acrylic',  emoji:'💅', name:'Acrylic' },
+];
+
+const designs = [
+  { id:'none',       label:'Clean',     emoji:'○' },
+  { id:'french',     label:'French',    emoji:'🤍' },
+  { id:'ombre',      label:'Ombré',     emoji:'🌅' },
+  { id:'floral',     label:'Floral',    emoji:'🌸' },
+  { id:'marble',     label:'Marble',    emoji:'🪨' },
+  { id:'abstract',   label:'Abstract',  emoji:'🎨' },
+  { id:'gems',       label:'Gems',      emoji:'💎' },
+  { id:'chrome-tip', label:'Chrome Tip',emoji:'✦' },
+];
+
+const lengthNames = ['Extra Short','Short','Medium','Long','Extra Long'];
+
+// ─── Render tabs ─────────────────────────────────────────
+function renderShapes() {
+  const el = document.getElementById('shapeOptions');
+  el.innerHTML = shapes.map(s => `
+    <div class="option-card ${state.shape===s.id?'selected':''}" onclick="selectShape('${s.id}')">
+      <div class="option-swatch" style="background:var(--surface2)">
+        <svg width="32" height="58" viewBox="0 0 32 58" class="nail-shape">
+          <path d="${s.path}" fill="${state.color}" opacity="${state.finish==='matte'?0.85:1}"
+            ${state.finish==='glossy'?`filter="url(#gloss)"`:''}
+          />
+          ${getFinishOverlay(s.path)}
+        </svg>
+      </div>
+      <div class="option-label">${s.label}</div>
+    </div>
+  `).join('');
+}
+
+function getFinishOverlay(path) {
+  if (state.finish==='glitter') return `<path d="${path}" fill="url(#glitter)" opacity="0.6"/>`;
+  if (state.finish==='chrome') return `<path d="${path}" fill="url(#chrome)" opacity="0.7"/>`;
+  if (state.finish==='hologram') return `<path d="${path}" fill="url(#holo)" opacity="0.5"/>`;
+  if (state.finish==='french') return '';
+  return `<path d="${path}" fill="url(#glossSheen)" opacity="0.25"/>`;
+}
+
+function renderColors() {
+  document.getElementById('colorOptions').innerHTML = colors.map(c => `
+    <div class="color-dot ${state.color===c.color?'selected':''}"
+         style="background:${c.color}; box-shadow: 0 2px 8px ${c.color}55"
+         onclick="selectColor('${c.color}')"
+         title="${c.name}">
+    </div>
+  `).join('');
+}
+
+function renderFinishes() {
+  document.getElementById('finishOptions').innerHTML = finishes.map(f => `
+    <div class="finish-card ${state.finish===f.id?'selected':''}" onclick="selectFinish('${f.id}')">
+      <span class="finish-emoji">${f.emoji}</span>
+      <span class="finish-name">${f.name}</span>
+    </div>
+  `).join('');
+}
+
+function renderDesigns() {
+  document.getElementById('designOptions').innerHTML = designs.map(d => `
+    <div class="option-card ${state.design===d.id?'selected':''}" onclick="selectDesign('${d.id}')">
+      <div class="option-swatch" style="background:var(--surface2); font-size:22px; display:flex; align-items:center; justify-content:center">
+        ${d.emoji}
+      </div>
+      <div class="option-label">${d.label}</div>
+    </div>
+  `).join('');
+}
+
+// ─── Selection handlers ───────────────────────────────────
+function selectShape(id) { state.shape=id; renderShapes(); renderOverlay(); }
+function selectColor(c)  { state.color=c;  renderShapes(); renderColors(); renderOverlay(); }
+function selectFinish(f) { state.finish=f; renderShapes(); renderFinishes(); renderOverlay(); }
+function selectDesign(d) { state.design=d; renderDesigns(); renderOverlay(); }
+function updateLength(v) {
+  state.length=parseInt(v);
+  document.getElementById('lengthVal').textContent = lengthNames[v-1];
+  renderOverlay();
+}
+
+// ─── Tab switching ────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).style.display='';
+  btn.classList.add('active');
+  if(name==='shape') renderShapes();
+  if(name==='color') renderColors();
+  if(name==='finish') renderFinishes();
+  if(name==='design') renderDesigns();
+}
+
+// ─── Camera ───────────────────────────────────────────────
+let videoStream = null;
+let animFrame = null;
+const video = document.getElementById('video');
+const canvas = document.getElementById('hand-canvas');
+const ctx = canvas.getContext('2d');
+
+async function startCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:720} },
+      audio: false
+    });
+    video.srcObject = videoStream;
+    video.onloadedmetadata = () => {
+      state.cameraOn = true;
+      document.getElementById('camOff').style.display = 'none';
+      document.getElementById('arHint').style.display = '';
+      resizeCanvas();
+      startARLoop();
+    };
+  } catch(e) {
+    // Fallback: try front camera
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = videoStream;
+      video.onloadedmetadata = () => {
+        state.cameraOn = true;
+        document.getElementById('camOff').style.display = 'none';
+        document.getElementById('arHint').style.display = '';
+        resizeCanvas();
+        startARLoop();
+      };
+    } catch(err) {
+      showToast('📷 Camera not available — showing demo mode');
+      startDemoMode();
+    }
+  }
+}
+
+function resizeCanvas() {
+  const wrap = document.getElementById('cameraWrap');
+  canvas.width = wrap.offsetWidth;
+  canvas.height = wrap.offsetHeight;
+}
+
+window.addEventListener('resize', () => { if(state.cameraOn) resizeCanvas(); });
+
+// ─── Demo mode (no camera) ────────────────────────────────
+function startDemoMode() {
+  document.getElementById('camOff').style.display = 'none';
+  document.getElementById('arHint').style.display = '';
+  state.cameraOn = true;
+  resizeCanvas();
+  startARLoop();
+}
+
+// ─── AR Overlay loop ──────────────────────────────────────
+// Simulates nail placement on a detected/demo hand
+let demoTime = 0;
+
+function startARLoop() {
+  function loop() {
+    demoTime += 0.016;
+    renderOverlay();
+    animFrame = requestAnimationFrame(loop);
+  }
+  animFrame = requestAnimationFrame(loop);
+}
+
+function renderOverlay() {
+  if(!state.cameraOn) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw simulated hand with nails overlay
+  drawHandWithNails(ctx, W, H, demoTime);
+}
+
+function drawHandWithNails(ctx, W, H, t) {
+  const cx = W * 0.5;
+  const cy = H * 0.52;
+  const scale = Math.min(W, H) * 0.0013;
+
+  // Subtle floating animation
+  const floatY = Math.sin(t * 0.8) * 4;
+  const tilt = Math.sin(t * 0.4) * 0.04;
+
+  ctx.save();
+  ctx.translate(cx, cy + floatY);
+  ctx.rotate(tilt);
+
+  // Draw hand silhouette
+  drawHandSilhouette(ctx, scale);
+
+  // Draw nails on each finger
+  const fingers = getFingerPositions(scale);
+  fingers.forEach((f, i) => {
+    drawNailOnFinger(ctx, f.x, f.y, f.angle, scale, i);
+  });
+
+  ctx.restore();
+}
+
+function getFingerPositions(s) {
+  const u = s * 100;
+  return [
+    { x: -1.7*u, y: -2.4*u, angle: -0.18 }, // pinky
+    { x: -0.8*u, y: -3.1*u, angle: -0.06 }, // ring
+    { x:  0.1*u, y: -3.3*u, angle:  0.02 }, // middle
+    { x:  1.0*u, y: -3.0*u, angle:  0.10 }, // index
+    { x:  2.2*u, y: -1.8*u, angle:  0.55 }, // thumb
+  ];
+}
+
+function drawHandSilhouette(ctx, s) {
+  const u = s * 100;
+  ctx.save();
+
+  // Palm
+  ctx.beginPath();
+  ctx.ellipse(0, 0.5*u, 1.55*u, 1.8*u, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(210,170,140,0.25)';
+  ctx.fill();
+
+  // Fingers
+  const fingerData = [
+    { x:-1.7*u, w:0.48*u, h:2.0*u, a:-0.15 },
+    { x:-0.8*u, w:0.52*u, h:2.6*u, a:-0.04 },
+    { x: 0.1*u, w:0.55*u, h:2.8*u, a: 0.02 },
+    { x: 1.0*u, w:0.52*u, h:2.5*u, a: 0.10 },
+    { x: 2.1*u, w:0.45*u, h:1.7*u, a: 0.52 },
+  ];
+
+  fingerData.forEach(f => {
+    ctx.save();
+    ctx.translate(f.x, -1.2*u);
+    ctx.rotate(f.a);
+    ctx.beginPath();
+    ctx.ellipse(0, -f.h*0.4, f.w, f.h*0.55, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(210,170,140,0.22)';
+    ctx.fill();
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
+
+function drawNailOnFinger(ctx, x, y, angle, s, fingerIdx) {
+  const u = s * 100;
+  const lengthMult = 0.7 + state.length * 0.18;
+  const nw = u * 0.44;
+  const nh = u * 0.78 * lengthMult;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const color = state.color;
+
+  // Draw nail shape
+  ctx.beginPath();
+  drawNailPath(ctx, nw, nh);
+
+  // Base fill
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Finish effects
+  applyFinishEffect(ctx, nw, nh, color, fingerIdx);
+
+  // Design overlay
+  applyDesign(ctx, nw, nh, color);
+
+  // Nail border/edge
+  ctx.beginPath();
+  drawNailPath(ctx, nw, nh);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawNailPath(ctx, nw, nh) {
+  const hw = nw / 2;
+  switch(state.shape) {
+    case 'square':
+      ctx.rect(-hw, -nh, nw, nh);
+      break;
+    case 'squoval':
+      roundedRect(ctx, -hw, -nh, nw, nh, hw * 0.35);
+      break;
+    case 'round':
+      roundedRect(ctx, -hw, -nh, nw, nh, hw);
+      break;
+    case 'oval':
+      ctx.ellipse(0, -nh*0.4, hw, nh*0.62, 0, 0, Math.PI*2);
+      break;
+    case 'almond':
+      ctx.moveTo(-hw, 0);
+      ctx.quadraticCurveTo(-hw, -nh*0.6, 0, -nh);
+      ctx.quadraticCurveTo(hw, -nh*0.6, hw, 0);
+      ctx.quadraticCurveTo(hw*0.6, nh*0.12, 0, nh*0.1);
+      ctx.quadraticCurveTo(-hw*0.6, nh*0.12, -hw, 0);
+      break;
+    case 'stiletto':
+      ctx.moveTo(-hw, 0);
+      ctx.lineTo(-hw*0.3, -nh*0.7);
+      ctx.lineTo(0, -nh);
+      ctx.lineTo(hw*0.3, -nh*0.7);
+      ctx.lineTo(hw, 0);
+      ctx.quadraticCurveTo(0, nh*0.1, -hw, 0);
+      break;
+    case 'coffin':
+      ctx.moveTo(-hw, 0);
+      ctx.lineTo(-hw*0.7, -nh);
+      ctx.lineTo(hw*0.7, -nh);
+      ctx.lineTo(hw, 0);
+      ctx.quadraticCurveTo(0, nh*0.1, -hw, 0);
+      break;
+    case 'flare':
+      ctx.moveTo(-hw*0.6, 0);
+      ctx.lineTo(-hw, -nh*0.85);
+      ctx.lineTo(-hw*0.8, -nh);
+      ctx.lineTo(hw*0.8, -nh);
+      ctx.lineTo(hw, -nh*0.85);
+      ctx.lineTo(hw*0.6, 0);
+      ctx.quadraticCurveTo(0, nh*0.1, -hw*0.6, 0);
+      break;
+    default:
+      roundedRect(ctx, -hw, -nh, nw, nh, hw * 0.5);
+  }
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function applyFinishEffect(ctx, nw, nh, color, idx) {
+  const hw = nw / 2;
+  switch(state.finish) {
+    case 'glossy': {
+      // Sheen highlight
+      const g = ctx.createLinearGradient(-hw, -nh, hw*0.5, -nh*0.3);
+      g.addColorStop(0, 'rgba(255,255,255,0.45)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.15)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath(); drawNailPath(ctx, nw*0.6, nh*0.55);
+      ctx.fillStyle = g; ctx.fill();
+      break;
+    }
+    case 'matte': {
+      ctx.beginPath(); drawNailPath(ctx, nw, nh);
+      ctx.fillStyle = 'rgba(20,10,20,0.18)'; ctx.fill();
+      break;
+    }
+    case 'glitter': {
+      for(let i=0; i<28; i++) {
+        const gx = (Math.random()-0.5)*nw*0.9;
+        const gy = -Math.random()*nh*0.9;
+        const gs = Math.random()*2.5+0.5;
+        ctx.beginPath();
+        ctx.arc(gx, gy, gs, 0, Math.PI*2);
+        ctx.fillStyle = `hsla(${Math.random()*60+300},90%,80%,${Math.random()*0.8+0.3})`;
+        ctx.fill();
+      }
+      break;
+    }
+    case 'chrome': {
+      const g = ctx.createLinearGradient(-hw, -nh, hw, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0.7)');
+      g.addColorStop(0.3, 'rgba(180,180,220,0.3)');
+      g.addColorStop(0.6, 'rgba(120,100,180,0.4)');
+      g.addColorStop(1, 'rgba(255,255,255,0.2)');
+      ctx.beginPath(); drawNailPath(ctx, nw, nh);
+      ctx.fillStyle = g; ctx.fill();
+      break;
+    }
+    case 'hologram': {
+      const hue = (demoTime * 80 + idx * 30) % 360;
+      const g = ctx.createLinearGradient(-hw, -nh, hw, 0);
+      g.addColorStop(0, `hsla(${hue},100%,70%,0.5)`);
+      g.addColorStop(0.5, `hsla(${hue+60},100%,70%,0.3)`);
+      g.addColorStop(1, `hsla(${hue+120},100%,70%,0.5)`);
+      ctx.beginPath(); drawNailPath(ctx, nw, nh);
+      ctx.fillStyle = g; ctx.fill();
+      break;
+    }
+    case 'velvet': {
+      ctx.beginPath(); drawNailPath(ctx, nw, nh);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+      // Fuzzy edge
+      ctx.beginPath(); drawNailPath(ctx, nw*0.85, nh*0.85);
+      const vg = ctx.createRadialGradient(0,-nh*0.5,0,0,-nh*0.5,nw*0.4);
+      vg.addColorStop(0,'rgba(255,255,255,0.05)');
+      vg.addColorStop(1,'rgba(0,0,0,0.2)');
+      ctx.fillStyle = vg; ctx.fill();
+      break;
+    }
+    default: {
+      const g = ctx.createLinearGradient(-hw*0.5,-nh,hw*0.3,-nh*0.4);
+      g.addColorStop(0,'rgba(255,255,255,0.3)');
+      g.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.beginPath(); drawNailPath(ctx, nw*0.55, nh*0.6);
+      ctx.fillStyle = g; ctx.fill();
+    }
+  }
+}
+
+function applyDesign(ctx, nw, nh, baseColor) {
+  const hw = nw / 2;
+  switch(state.design) {
+    case 'french': {
+      ctx.beginPath();
+      ctx.ellipse(0, -nh*0.88, hw*0.92, nh*0.18, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,252,250,0.92)';
+      ctx.fill();
+      break;
+    }
+    case 'ombre': {
+      const og = ctx.createLinearGradient(0, 0, 0, -nh);
+      og.addColorStop(0, baseColor);
+      og.addColorStop(1, 'rgba(255,255,255,0.85)');
+      ctx.beginPath(); drawNailPath(ctx, nw, nh);
+      ctx.fillStyle = og; ctx.fill();
+      break;
+    }
+    case 'floral': {
+      // Simple petal dots
+      const petals = [[0,-nh*0.6],[hw*0.25,-nh*0.75],[-hw*0.25,-nh*0.75],[hw*0.2,-nh*0.5],[-hw*0.2,-nh*0.5]];
+      petals.forEach(([px,py]) => {
+        ctx.beginPath();
+        ctx.arc(px, py, nw*0.1, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,200,220,0.85)';
+        ctx.fill();
+      });
+      ctx.beginPath();
+      ctx.arc(0, -nh*0.62, nw*0.07, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,230,100,0.9)';
+      ctx.fill();
+      break;
+    }
+    case 'marble': {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      for(let i=0;i<3;i++) {
+        ctx.beginPath();
+        ctx.moveTo(-hw+i*nw*0.3, -nh);
+        ctx.bezierCurveTo(
+          -hw*0.3+i*nw*0.2, -nh*0.7,
+           hw*0.4-i*nw*0.1, -nh*0.3,
+          -hw*0.1+i*nw*0.3, 0
+        );
+        ctx.strokeStyle = 'rgba(200,195,210,0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'abstract': {
+      const colors2 = ['rgba(255,180,200,0.7)','rgba(180,200,255,0.7)','rgba(255,220,150,0.6)'];
+      for(let i=0;i<3;i++) {
+        ctx.beginPath();
+        ctx.arc(
+          (Math.sin(i*2.3)-0.5)*hw*0.8,
+          -nh*(0.3+i*0.25),
+          nw*(0.12+i*0.07), 0, Math.PI*2
+        );
+        ctx.fillStyle = colors2[i];
+        ctx.fill();
+      }
+      break;
+    }
+    case 'gems': {
+      const gemPos = [[0,-nh*0.65],[hw*0.22,-nh*0.52],[-hw*0.22,-nh*0.52],[0,-nh*0.42]];
+      gemPos.forEach(([gx,gy]) => {
+        ctx.save();
+        ctx.translate(gx, gy);
+        const r = nw*0.09;
+        ctx.beginPath();
+        for(let i=0;i<6;i++){
+          const a = i*Math.PI/3;
+          i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(200,220,255,0.95)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        ctx.restore();
+      });
+      break;
+    }
+    case 'chrome-tip': {
+      const ctg = ctx.createLinearGradient(-hw,-nh,hw,-nh*0.7);
+      ctg.addColorStop(0,'rgba(255,255,255,0.85)');
+      ctg.addColorStop(0.5,'rgba(200,195,230,0.75)');
+      ctg.addColorStop(1,'rgba(255,255,255,0.5)');
+      ctx.beginPath();
+      ctx.ellipse(0,-nh*0.88,hw*0.9,nh*0.2,0,0,Math.PI*2);
+      ctx.fillStyle = ctg;
+      ctx.fill();
+      break;
+    }
+  }
+}
+
+// ─── Capture ──────────────────────────────────────────────
+function capturePhoto() {
+  const capture = document.createElement('canvas');
+  const wrap = document.getElementById('cameraWrap');
+  capture.width = wrap.offsetWidth;
+  capture.height = wrap.offsetHeight;
+  const cctx = capture.getContext('2d');
+
+  if(state.cameraOn && videoStream) {
+    cctx.save();
+    cctx.translate(capture.width, 0);
+    cctx.scale(-1, 1);
+    cctx.drawImage(video, 0, 0, capture.width, capture.height);
+    cctx.restore();
+  } else {
+    cctx.fillStyle = '#0d0b0f';
+    cctx.fillRect(0,0,capture.width,capture.height);
+  }
+
+  cctx.drawImage(canvas, 0, 0);
+
+  const link = document.createElement('a');
+  link.download = 'nailar-look.png';
+  link.href = capture.toDataURL('image/png');
+  link.click();
+  showToast('📸 Photo saved!');
+}
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ─── Init ─────────────────────────────────────────────────
+renderShapes();
+renderColors();
+renderFinishes();
+renderDesigns();
+
+// Auto-start camera after brief delay
+setTimeout(()=>{
+  // Try camera, fallback to demo
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    startCamera();
+  } else {
+    startDemoMode();
+  }
+}, 400);
+</script>
+</body>
+</html>
